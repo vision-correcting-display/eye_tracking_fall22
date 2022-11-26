@@ -28,9 +28,11 @@ def draw_FACE(frame, face_ROIs):
 
     return frame
 
-def draw_EYE(frame, eyes_ROIs, method="68"):    
+def draw_EYE(frame, eyes_ROIs, method="68"):
+    frame_drawn = frame
+        
     if eyes_ROIs == None:
-        return frame
+        return frame_drawn
     
     if method == "68":
         for eyesROI in eyes_ROIs:
@@ -299,6 +301,8 @@ eye_68_detector     = dlib.shape_predictor('./models/shape_predictor_68_face_lan
 left_eye_cor        = [36, 37, 38, 39, 40, 41]
 right_eye_cor       = [42, 43, 44, 45, 46, 47]
 
+# 5 Point Facial Landmark [TBD]
+
 ############################
 # Operation
 ############################
@@ -316,13 +320,25 @@ images = os.listdir('my_images')
 for image in images:
     if(image[-4:] != ".JPG" and image[-5:] != ".jpeg"): 
         continue
-    if(image != "IMG_1320.JPG"):
+    if(image != "low8_real_A.jpeg"):
         continue
     
     print("Processing:", image)
     
     img = cv.imread(os.path.join('my_images', image))
     # detectAndDisplay(img)
+    ###############################
+    #   DL Low Light Enhancement
+    ###############################
+    # Zero DCE
+    def ZERO_DCE(dark_img_in, light_img_out):
+        pass
+    # EnlightenGAN
+    def ENLIGHTEN_GAN(dark_img_in, light_img_out):
+        pass
+    
+    
+    
     ###############################
     #   Face Detection
     ###############################
@@ -396,6 +412,8 @@ for image in images:
     img_results     = []
     img_titles      = [] 
     
+    plot_offset     = 0  # if not detect
+    
     for face_method in face_methods:
         img_results.append(cvt_RGB(img))
         img_titles.append("Original")
@@ -435,21 +453,25 @@ for image in images:
             img_titles.append("After Thresholding")
             
             # Contouring
-            mid_point = \
-                (facial_landmark_dict[face_method+'_'+eyes_method][42][0]+\
-                facial_landmark_dict[face_method+'_'+eyes_method][39][0]) //2
+            if(len(facial_landmark_dict[face_method+'_'+eyes_method]) == 0):
+                print("Facial Landmark not detect.")
+                plot_offset += 1
+                break
+            else:
+                mid_point = \
+                    (facial_landmark_dict[face_method+'_'+eyes_method][42][0]+\
+                    facial_landmark_dict[face_method+'_'+eyes_method][39][0]) //2
             
-            # print(mid_point)
-            # Contour left eye
-            img_copy = img.copy()
-            img_left_eye    = contouring(img_copy, mid_point, thresh[:, 0:mid_point], False)
-            # Contour right eye
-            img_both_eyes   = contouring(img_left_eye, mid_point, thresh[:, mid_point:], True)
-            
-            img_results.append(cvt_RGB(img_both_eyes))
-            img_titles.append("Result")
+                # Contour left eye
+                img_copy = img.copy()
+                img_left_eye    = contouring(img_copy, mid_point, thresh[:, 0:mid_point], False)
+                # Contour right eye
+                img_both_eyes   = contouring(img_left_eye, mid_point, thresh[:, mid_point:], True)
+                
+                img_results.append(cvt_RGB(img_both_eyes))
+                img_titles.append("Result")
     
-    plot_mul_images(img_results, img_titles, len(face_methods), len(eyes_methods)+ 6)
+    plot_mul_images(img_results, img_titles, len(face_methods), len(eyes_methods)+ 6 - plot_offset)
     
     break
 
