@@ -351,12 +351,17 @@ for image in images:
     def ZERO_DCE(dark_img_in, light_img_out):
         pass
     # EnlightenGAN
-    def ENLIGHTEN_GAN(dark_img_in, light_img_out):
+    def ENLIGHTEN_GAN(dark_img_in, light_img_out = None):
         # complete above
         # do directly on the entire directory instead of single images
-        pass
-    
-    
+        enlighten_images = os.listdir("./enlighten_images") 
+        image_name = dark_img_in
+        for enlighten_img in enlighten_images:
+            if enlighten_img == image_name:
+                light_img_out = cv.imread(os.path.join('./enlighten_images', enlighten_img))
+                break
+        return light_img_out
+
     
     ###############################
     #   Face Detection
