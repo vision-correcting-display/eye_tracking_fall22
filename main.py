@@ -316,6 +316,23 @@ def nothing(x):
 cv.createTrackbar('threshold', 'image', 0, 255, nothing)
 
 images = os.listdir('my_images')   
+
+###############################
+#   DL Low Light Enhancement
+###############################
+
+enhancement_method = ""
+
+# Englighten GAN
+if enhancement_method == "EnlightenGAN":
+    os.system("python ./low_light/EnlightenGAN/predict.py \
+    --dataroot ./my_images \
+    --checkpoints_dir ./low_light/EnlightenGANs/EnlightenGAN/checkpoints \
+    --no_dropout \
+    --self_attention \
+    --times_residual \
+    --which_epoch " + str(200))
+
  
 for image in images:
     if(image[-4:] != ".JPG" and image[-5:] != ".jpeg"): 
@@ -335,6 +352,8 @@ for image in images:
         pass
     # EnlightenGAN
     def ENLIGHTEN_GAN(dark_img_in, light_img_out):
+        # complete above
+        # do directly on the entire directory instead of single images
         pass
     
     
