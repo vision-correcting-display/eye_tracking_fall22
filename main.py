@@ -7,6 +7,26 @@ import matplotlib.pyplot as plt
 import dlib
 import os
 
+###############################
+#   DL Low Light Enhancement
+###############################
+# Zero DCE
+def ZERO_DCE(dark_img_in, light_img_out):
+    pass
+# EnlightenGAN
+def ENLIGHTEN_GAN(dark_img_in, light_img_out):
+    pass
+
+#######################################
+#   Conventional Low Light Enhancement
+#######################################
+# LIME
+def LIME(dark_img_in, light_img_out):
+    pass
+
+def DUAL_ILLUMINATION(dark_img_in, light_img_out):
+    pass
+
 # Util Functions
 def cvt_GRAY(frame):
     frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
@@ -58,6 +78,12 @@ def shape_to_np(shape, dtype='int'):
         
     return coords
 
+def eye_on_mask(shape, mask, side):
+    points = [shape[i] for i in side]
+    points = np.array(points, dtype=np.int32)
+    mask = cv.fillConvexPoly(mask, points, 255)
+    return mask
+
 def eyes_dilate_and_segment(frame, mask):
     kernel  = np.ones((9,9), np.uint8)
     mask    = cv.dilate(mask, kernel, 5)
@@ -97,7 +123,7 @@ def contouring(frame, mid_point, thresh, right=False):
         radius      = 40
         thickness   = 10
         frame = cv.circle(frame, (cx, cy), radius, (0, 0, 255), thickness)
-    
+         
     except:
         pass
 
@@ -251,29 +277,26 @@ def eye_68_facial_landmark(eyes_detector, frame_gray, face_ROIs, left_cor, right
         
     return facial_landmarks, eye_ROIs
 
-# def detectAndDisplay(frame):
-#     frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-#     frame_gray = cv.equalizeHist(frame_gray)
-#     #-- Detect faces
-#     faces = face_cascade.detectMultiScale(frame_gray)
-#     for (x,y,w,h) in faces:
-#         center = (x + w//2, y + h//2)
-#         frame = cv.ellipse(frame, center, (w//2, h//2), 0, 0, 360, (255, 0, 255), 4)
-#         faceROI = frame_gray[y:y+h,x:x+w]
-#         #-- In each face, detect eyes
-#         eyes = eyes_cascade.detectMultiScale(faceROI)
-#         for (x2,y2,w2,h2) in eyes:
-#             eye_center = (x + x2 + w2//2, y + y2 + h2//2)
-#             radius = int(round((w2 + h2)*0.25))
-#             frame = cv.circle(frame, eye_center, radius, (255, 0, 0 ), 4)
+# For Real Time DETECTING
+def detectAndDisplay(frame, face_detector, eyes_detector):
+    frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    frame_gray = cv.equalizeHist(frame_gray)
+    #-- Detect faces
+    faces = face_detector.detectMultiScale(frame_gray)
+    for (x,y,w,h) in faces:
+        center = (x + w//2, y + h//2)
+        frame = cv.ellipse(frame, center, (w//2, h//2), 0, 0, 360, (255, 0, 255), 4)
+        faceROI = frame_gray[y:y+h,x:x+w]
+        #-- In each face, detect eyes
+        eyes = eyes_detector.detectMultiScale(faceROI)
+        for (x2,y2,w2,h2) in eyes:
+            eye_center = (x + x2 + w2//2, y + y2 + h2//2)
+            radius = int(round((w2 + h2)*0.25))
+            frame = cv.circle(frame, eye_center, radius, (255, 0, 0 ), 4)
     
-#     cv.imshow('Capture - Face detection', frame)
-#     cv.waitKey(0)
-#     cv.destroyAllWindows()
-
-parser = argparse.ArgumentParser(description='Code for Cascade Classifier tutorial.')
-parser.add_argument('--camera', help='Camera divide number.', type=int, default=0)
-args = parser.parse_args()
+    cv.imshow('Capture - Face detection', frame)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
 
 ############################
 # Initialing Face Detector
@@ -303,195 +326,270 @@ right_eye_cor       = [42, 43, 44, 45, 46, 47]
 
 # 5 Point Facial Landmark [TBD]
 
-############################
-# Operation
-############################
-faces_dict  = {}
-eyes_dict   = {} 
-facial_landmark_dict = {}
+def ALL_METHODS():
+    ############################
+    # Operation
+    ############################
+    faces_dict  = {}
+    eyes_dict   = {} 
+    facial_landmark_dict = {}
 
-cv.namedWindow('image')
-def nothing(x):
-    pass
-cv.createTrackbar('threshold', 'image', 0, 255, nothing)
+    cv.namedWindow('image')
+    def nothing(x):
+        pass
+    cv.createTrackbar('threshold', 'image', 0, 255, nothing)
 
-images = os.listdir('my_images')   
- 
-for image in images:
-    if(image[-4:] != ".JPG" and image[-5:] != ".jpeg"): 
-        continue
-    if(image != "low8_real_A.jpeg"):
-        continue
+    images = os.listdir('my_images')   
     
-    print("Processing:", image)
-    
-    img = cv.imread(os.path.join('my_images', image))
-    # detectAndDisplay(img)
-    ###############################
-    #   DL Low Light Enhancement
-    ###############################
-    # Zero DCE
-    def ZERO_DCE(dark_img_in, light_img_out):
-        pass
-    # EnlightenGAN
-    def ENLIGHTEN_GAN(dark_img_in, light_img_out):
-        pass
-    
-    
-    
-    ###############################
-    #   Face Detection
-    ###############################
-    # Haar Cascade
-    img_haar        = img.copy() 
-    face_haar_ROIs  = face_haar_cascade(face_haar_detector, img_haar)
-    faces_dict["HAAR"] = face_haar_ROIs
-    
-    # HOG
-    img_hog         = img.copy()
-    img_hog_gray    = cvt_GRAY(img_hog)
-    face_hog_ROIs   = face_hog(face_hog_detector, hog_upsample, img_hog_gray)
-    faces_dict["HOG"] = face_hog_ROIs
-    
-    # MTCNN
-    img_mtcnn           = img.copy()
-    face_mtcnn_ROIs     = face_mtcnn(face_mtcnn_detector, img_mtcnn)
-    faces_dict["MTCNN"] = face_mtcnn_ROIs
-    
-    # DNN: resize to (300x300) to get the best result?
-    img_dnn             = img.copy()
-    img_dnn_blob        = cv.dnn.blobFromImage(cv.resize(img_dnn, (300, 300)),
-                            1.0, (300, 300), (104.0, 117.0, 123.0))
-    face_dnn_ROIs       = face_dnn(face_dnn_detector, img_dnn_blob, img_dnn.shape)
-    faces_dict["DNN"]   = face_dnn_ROIs
-    
-    ###############################
-    #  Eye Detection
-    ###############################
-    # Haar Cascade Face + Haar Cascade Eye
-    # eye_haar_haar_ROIs      = eye_haar_cascade(eye_haar_detector, img_haar, face_haar_ROIs)
-    # eyes_dict["HAAR_HAAR"]  = eye_haar_haar_ROIs
-    
-    # HOG Face + Haar Cascade Eye
-    # eye_hog_haar_ROIs       = eye_haar_cascade(eye_haar_detector, img_hog, face_hog_ROIs)
-    # eyes_dict["HOG_HAAR"]   = eye_hog_haar_ROIs
-    
-    # MTCNN Face + Haar Cascade Eye
-    # eye_mtcnn_haar_ROIs     = eye_haar_cascade(eye_haar_detector, img_mtcnn, face_mtcnn_ROIs)
-    # eyes_dict["MTCNN_HAAR"] = eye_mtcnn_haar_ROIs
-    
-    # DNN Face + Haar Cascade Eye
-    # eye_dnn_haar_ROIs       = eye_haar_cascade(eye_haar_detector, img_dnn, face_dnn_ROIs)
-    # eyes_dict["DNN_HAAR"]   = eye_dnn_haar_ROIs
-    
-    # Haar Cascade Face + 68 Facial Landmarks Eye
-    eye_haar_68_lm, eye_haar_68_ROIs    = eye_68_facial_landmark(eye_68_detector, img_haar, face_haar_ROIs, left_eye_cor, right_eye_cor)
-    eyes_dict["HAAR_68"]                = eye_haar_68_ROIs
-    facial_landmark_dict["HAAR_68"]     = eye_haar_68_lm
-    
-    # HOG Face + 68 Facial Landmarks Eye
-    eye_hog_68_lm, eye_hog_68_ROIs      = eye_68_facial_landmark(eye_68_detector, img_hog, face_hog_ROIs, left_eye_cor, right_eye_cor)
-    eyes_dict["HOG_68"]                 = eye_hog_68_ROIs
-    facial_landmark_dict["HOG_68"]      = eye_hog_68_lm
-    
-    # MTCNN Face + 68 Facial Landmarks Eye
-    eye_mtcnn_68_lm, eye_mtcnn_68_ROIs  = eye_68_facial_landmark(eye_68_detector, img_mtcnn, face_mtcnn_ROIs, left_eye_cor, right_eye_cor)
-    eyes_dict["MTCNN_68"]               = eye_mtcnn_68_ROIs
-    facial_landmark_dict["MTCNN_68"]    = eye_mtcnn_68_lm
-    
-    # DNN Face + 68 Facial Landmarks Eye
-    eye_dnn_68_lm, eye_dnn_68_ROIs      = eye_68_facial_landmark(eye_68_detector, img_dnn, face_dnn_ROIs, left_eye_cor, right_eye_cor)
-    eyes_dict["DNN_68"]                 = eye_dnn_68_ROIs
-    facial_landmark_dict["DNN_68"]      = eye_dnn_68_lm
-    ###############################
-    #  Plotting
-    ###############################
-    face_methods    = ["HAAR", "HOG", "MTCNN", "DNN"]
-    # face_methods    = ["DNN"]
-    eyes_methods    = ["68"]
-    img_results     = []
-    img_titles      = [] 
-    
-    plot_offset     = 0  # if not detect
-    
-    for face_method in face_methods:
-        img_results.append(cvt_RGB(img))
-        img_titles.append("Original")
+    for image in images:
+        if(image[-4:] != ".JPG" and image[-5:] != ".jpeg"): 
+            continue
+        if(image != "low8_real_A.jpeg"):
+            continue
         
-        # Draw Face
-        img_copy        = img.copy() 
-        img_faces       = draw_FACE(img_copy, faces_dict[face_method])
+        print("Processing:", image)
         
-        img_results.append(cvt_RGB(img_faces))
-        img_titles.append(f"{face_method} Face Detector")
+        img = cv.imread(os.path.join('my_images', image))
+        # detectAndDisplay(img)
         
-        for eyes_method in eyes_methods:
-            img_faces_copy  = img_faces.copy()
+        ###############################
+        #   Face Detection
+        ###############################
+        # Haar Cascade
+        img_haar        = img.copy() 
+        face_haar_ROIs  = face_haar_cascade(face_haar_detector, img_haar)
+        faces_dict["HAAR"] = face_haar_ROIs
+        
+        # HOG
+        img_hog         = img.copy()
+        img_hog_gray    = cvt_GRAY(img_hog)
+        face_hog_ROIs   = face_hog(face_hog_detector, hog_upsample, img_hog_gray)
+        faces_dict["HOG"] = face_hog_ROIs
+        
+        # MTCNN
+        img_mtcnn           = img.copy()
+        face_mtcnn_ROIs     = face_mtcnn(face_mtcnn_detector, img_mtcnn)
+        faces_dict["MTCNN"] = face_mtcnn_ROIs
+        
+        # DNN: resize to (300x300) to get the best result?
+        img_dnn             = img.copy()
+        img_dnn_blob        = cv.dnn.blobFromImage(cv.resize(img_dnn, (300, 300)),
+                                1.0, (300, 300), (104.0, 117.0, 123.0))
+        face_dnn_ROIs       = face_dnn(face_dnn_detector, img_dnn_blob, img_dnn.shape)
+        faces_dict["DNN"]   = face_dnn_ROIs
+        
+        ###############################
+        #  Eye Detection
+        ###############################
+        # Haar Cascade Face + Haar Cascade Eye
+        # eye_haar_haar_ROIs      = eye_haar_cascade(eye_haar_detector, img_haar, face_haar_ROIs)
+        # eyes_dict["HAAR_HAAR"]  = eye_haar_haar_ROIs
+        
+        # HOG Face + Haar Cascade Eye
+        # eye_hog_haar_ROIs       = eye_haar_cascade(eye_haar_detector, img_hog, face_hog_ROIs)
+        # eyes_dict["HOG_HAAR"]   = eye_hog_haar_ROIs
+        
+        # MTCNN Face + Haar Cascade Eye
+        # eye_mtcnn_haar_ROIs     = eye_haar_cascade(eye_haar_detector, img_mtcnn, face_mtcnn_ROIs)
+        # eyes_dict["MTCNN_HAAR"] = eye_mtcnn_haar_ROIs
+        
+        # DNN Face + Haar Cascade Eye
+        # eye_dnn_haar_ROIs       = eye_haar_cascade(eye_haar_detector, img_dnn, face_dnn_ROIs)
+        # eyes_dict["DNN_HAAR"]   = eye_dnn_haar_ROIs
+        
+        # Haar Cascade Face + 68 Facial Landmarks Eye
+        eye_haar_68_lm, eye_haar_68_ROIs    = eye_68_facial_landmark(eye_68_detector, img_haar, face_haar_ROIs, left_eye_cor, right_eye_cor)
+        eyes_dict["HAAR_68"]                = eye_haar_68_ROIs
+        facial_landmark_dict["HAAR_68"]     = eye_haar_68_lm
+        
+        # HOG Face + 68 Facial Landmarks Eye
+        eye_hog_68_lm, eye_hog_68_ROIs      = eye_68_facial_landmark(eye_68_detector, img_hog, face_hog_ROIs, left_eye_cor, right_eye_cor)
+        eyes_dict["HOG_68"]                 = eye_hog_68_ROIs
+        facial_landmark_dict["HOG_68"]      = eye_hog_68_lm
+        
+        # MTCNN Face + 68 Facial Landmarks Eye
+        eye_mtcnn_68_lm, eye_mtcnn_68_ROIs  = eye_68_facial_landmark(eye_68_detector, img_mtcnn, face_mtcnn_ROIs, left_eye_cor, right_eye_cor)
+        eyes_dict["MTCNN_68"]               = eye_mtcnn_68_ROIs
+        facial_landmark_dict["MTCNN_68"]    = eye_mtcnn_68_lm
+        
+        # DNN Face + 68 Facial Landmarks Eye
+        eye_dnn_68_lm, eye_dnn_68_ROIs      = eye_68_facial_landmark(eye_68_detector, img_dnn, face_dnn_ROIs, left_eye_cor, right_eye_cor)
+        eyes_dict["DNN_68"]                 = eye_dnn_68_ROIs
+        facial_landmark_dict["DNN_68"]      = eye_dnn_68_lm
+        ###############################
+        #  Plotting
+        ###############################
+        face_methods    = ["HAAR", "HOG", "MTCNN", "DNN"]
+        # face_methods    = ["DNN"]
+        eyes_methods    = ["68"]
+        img_results     = []
+        img_titles      = [] 
+        
+        plot_offset     = 0  # if not detect
+        
+        for face_method in face_methods:
+            img_results.append(cvt_RGB(img))
+            img_titles.append("Original")
             
-            img_facial_landmark = draw_EYE(img_copy, eyes_dict[face_method+'_'+eyes_method], eyes_method)
+            # Draw Face
+            img_copy        = img.copy() 
+            img_faces       = draw_FACE(img_copy, faces_dict[face_method])
             
-            img_results.append(cvt_RGB(img_facial_landmark))
-            img_titles.append(f"{eyes_method} Eye Detector")
+            img_results.append(cvt_RGB(img_faces))
+            img_titles.append(f"{face_method} Face Detector")
             
-            img_mask        = np.zeros(img_copy.shape[:2], dtype=np.uint8)
-            img_eyes        = draw_EYE(img_mask, eyes_dict[face_method+'_'+eyes_method], eyes_method)
-            
-            img_results.append(img_eyes)
-            img_titles.append(f"{eyes_method} Eye on Mask")
-            
-            # Dilate and Segment the eyes
-            img_copy        = img.copy()
-            img_dil_seg_eyes= eyes_dilate_and_segment(img_copy, img_eyes) 
-            
-            img_results.append(img_dil_seg_eyes)
-            img_titles.append("Segment the eyes")
-            
-            # Thresholding
-            thresh = thresholding(img_dil_seg_eyes)
-            
-            img_results.append(thresh)
-            img_titles.append("After Thresholding")
-            
-            # Contouring
-            if(len(facial_landmark_dict[face_method+'_'+eyes_method]) == 0):
-                print("Facial Landmark not detect.")
-                plot_offset += 1
-                break
-            else:
-                mid_point = \
-                    (facial_landmark_dict[face_method+'_'+eyes_method][42][0]+\
-                    facial_landmark_dict[face_method+'_'+eyes_method][39][0]) //2
-            
-                # Contour left eye
-                img_copy = img.copy()
-                img_left_eye    = contouring(img_copy, mid_point, thresh[:, 0:mid_point], False)
-                # Contour right eye
-                img_both_eyes   = contouring(img_left_eye, mid_point, thresh[:, mid_point:], True)
+            for eyes_method in eyes_methods:
+                img_faces_copy  = img_faces.copy()
                 
-                img_results.append(cvt_RGB(img_both_eyes))
-                img_titles.append("Result")
+                img_facial_landmark = draw_EYE(img_copy, eyes_dict[face_method+'_'+eyes_method], eyes_method)
+                
+                img_results.append(cvt_RGB(img_facial_landmark))
+                img_titles.append(f"{eyes_method} Eye Detector")
+                
+                img_mask        = np.zeros(img_copy.shape[:2], dtype=np.uint8)
+                img_eyes        = draw_EYE(img_mask, eyes_dict[face_method+'_'+eyes_method], eyes_method)
+                
+                img_results.append(img_eyes)
+                img_titles.append(f"{eyes_method} Eye on Mask")
+                
+                # Dilate and Segment the eyes
+                img_copy        = img.copy()
+                img_dil_seg_eyes= eyes_dilate_and_segment(img_copy, img_eyes) 
+                
+                img_results.append(img_dil_seg_eyes)
+                img_titles.append("Segment the eyes")
+                
+                # Thresholding
+                thresh = thresholding(img_dil_seg_eyes)
+                
+                img_results.append(thresh)
+                img_titles.append("After Thresholding")
+                
+                # Contouring
+                if(len(facial_landmark_dict[face_method+'_'+eyes_method]) == 0):
+                    print("Facial Landmark not detect.")
+                    plot_offset += 1
+                    break
+                else:
+                    mid_point = \
+                        (facial_landmark_dict[face_method+'_'+eyes_method][42][0]+\
+                        facial_landmark_dict[face_method+'_'+eyes_method][39][0]) //2
+                
+                    # Contour left eye
+                    img_copy = img.copy()
+                    img_left_eye    = contouring(img_copy, mid_point, thresh[:, 0:mid_point], False)
+                    # Contour right eye
+                    img_both_eyes   = contouring(img_left_eye, mid_point, thresh[:, mid_point:], True)
+                    
+                    img_results.append(cvt_RGB(img_both_eyes))
+                    img_titles.append("Result")
+        
+        plot_mul_images(img_results, img_titles, len(face_methods), len(eyes_methods)+ 6 - plot_offset)
+        
+        break
+
+
+def DETECTION(camera_device):
+    ################################
+    #   Using Camera
+    ################################
+    # -- 2. Read the video stream
+    cap = cv.VideoCapture(camera_device)
+    if not cap.isOpened:
+        print('--(!)Error opening video capture')
+        exit(0)
+
+    while True:
+        ret, frame = cap.read()
+        if frame is None:
+            print('--(!) No captured frame -- Break!')
+            break
+        detectAndDisplay(frame, face_haar_detector, eye_haar_detector)
+        if cv.waitKey(10) == 27:
+            break
     
-    plot_mul_images(img_results, img_titles, len(face_methods), len(eyes_methods)+ 6 - plot_offset)
+def REAL_TIME_TRACKING(camera_device, face_detector):
+    cap         = cv.VideoCapture(camera_device)
+    ret, img    = cap.read()
+    thresh      = img.copy()
+
+    cv.namedWindow('image')
+    kernel = np.ones((9, 9), np.uint8)
+
+    def nothing(x):
+        pass
+    cv.createTrackbar('threshold', 'image', 0, 255, nothing)
     
-    break
+    left    = [36, 37, 38, 39, 40, 41]
+    right   = [42, 43, 44, 45, 46, 47]
 
+    while(True):
+        ret, img    = cap.read()
+        img_gray    = cvt_GRAY(img)
+        #Choose the detector
+        if(face_detector == "DNN"):
+            img_dnn             = img.copy()
+            img_dnn_blob        = cv.dnn.blobFromImage(cv.resize(img_dnn, (300, 300)),
+                                        1.0, (300, 300), (104.0, 117.0, 123.0))
+            rects               = face_dnn(face_dnn_detector, img_dnn_blob, img_dnn.shape)
+        elif(face_detector == "HOG"):
+            rects               = face_hog(face_hog_detector, hog_upsample, img_gray)
+        elif(face_detector == "MTCNN"):
+            img_mtcnn           = img.copy()
+            rects               = face_mtcnn(face_mtcnn_detector, img_mtcnn)
+        elif(face_detector == "HAAR"): 
+            img_haar            = img.copy() 
+            rects               = face_haar_cascade(face_haar_detector, img_haar)
+        else:
+            print("Invalid Face Detector")
+            return  
+            
+        for (x1,x2,y1,y2) in rects:
+            rect  = dlib.rectangle(x1, y1, x2, y2)
+            shape = eye_68_detector(img_gray, rect)
+            shape = shape_to_np(shape)
+            mask = np.zeros(img.shape[:2], dtype=np.uint8)
+            mask = eye_on_mask(shape, mask, left)
+            mask = eye_on_mask(shape, mask, right)
+            mask = cv.dilate(mask, kernel, 5)
+            eyes = cv.bitwise_and(img, img, mask=mask)
+            mask = (eyes == [0, 0, 0]).all(axis=2)
+            eyes[mask] = [255, 255, 255]
+            mid = (shape[42][0] + shape[39][0]) // 2
+            eyes_gray = cvt_GRAY(eyes)
+            threshold = cv.getTrackbarPos('threshold', 'image')
+            _, thresh = cv.threshold(eyes_gray, threshold, 255, cv.THRESH_BINARY)
+            thresh = cv.erode(thresh, None, iterations=2) #1
+            thresh = cv.dilate(thresh, None, iterations=4) #2
+            thresh = cv.medianBlur(thresh, 3) #3
+            thresh = cv.bitwise_not(thresh)
+            img    = contouring(img, mid, thresh[:, 0:mid])
+            img    = contouring(img, mid, thresh[:, mid:], True)
+            # for (x, y) in shape[36:48]:
+            #     cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+        # show the image with the face detections + facial landmarks
+        cv.imshow('eyes', img)
+        cv.imshow("image", thresh)
+        if cv.waitKey(1) & 0xFF == ord('q'):
+            break
+        
+    cap.release()
+    cv.destroyAllWindows()
+    
 
-################################
-#   Using Camera
-################################
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Code for Cascade Classifier tutorial.')
+    parser.add_argument('--camera', help='Camera divide number.', type=int, default=0)
+    parser.add_argument('--type', help='["ALL", "DETECT", "TRACK"]', type=str, default="ALL")
+    parser.add_argument('--face', help='["DNN", "HOG", "MTCNN", "HAAR"]', type=str, default="DNN")
+    args = parser.parse_args()
 
-# camera_device = args.camera
-#-- 2. Read the video stream
-# cap = cv.VideoCapture(camera_device)
-# if not cap.isOpened:
-#     print('--(!)Error opening video capture')
-#     exit(0)
-
-# while True:
-#     ret, frame = cap.read()
-#     if frame is None:
-#         print('--(!) No captured frame -- Break!')
-#         break
-#     detectAndDisplay(frame)
-#     if cv.waitKey(10) == 27:
-#         break
+    if(args.type == "ALL"):
+        print("RUN ALL THE METHOD.")
+        ALL_METHODS()
+    elif(args.type == "DETECT"):
+        print("USING WEBCAM TO DO DETECTION")
+        DETECTION(args.camera)
+    else:
+        print("USING WEBCAM TO DO REAL TIME TRACKING")
+        REAL_TIME_TRACKING(args.camera, args.face)
