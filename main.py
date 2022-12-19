@@ -1,4 +1,12 @@
 from __future__ import print_function
+import torch
+import torch.nn as nn
+import torchvision
+import torch.backends.cudnn as cudnn
+import torch.optim
+from torchvision import transforms
+from PIL import Image
+import glob
 from mtcnn.mtcnn import MTCNN
 import argparse
 import cv2 as cv
@@ -7,14 +15,31 @@ import matplotlib.pyplot as plt
 import dlib
 import os
 
+import zero_dce_model
+import conventional
+
+import time
+
 ###############################
 #   DL Low Light Enhancement
 ###############################
 # Zero DCE
-def ZERO_DCE(dark_img_in, light_img_out):
-    pass
+def ZERO_DCE(DCE_net, dark_img_in):
+    dark_img_in = (np.asarray(dark_img_in)/255.0)
+    
+    dark_img_in = torch.from_numpy(dark_img_in).float()
+    dark_img_in = dark_img_in.permute(2,0,1)
+    dark_img_in = dark_img_in.unsqueeze(0).to('cpu')
+    
+    _,enhanced_image,_ = DCE_net(dark_img_in)
+
+    return enhanced_image
+	
 # EnlightenGAN
 def ENLIGHTEN_GAN(dark_img_in, light_img_out):
+    pass
+
+def DEEP_RETINEX_DECOMP(dark_img_in, light_img_out):
     pass
 
 #######################################
@@ -120,8 +145,8 @@ def contouring(frame, mid_point, thresh, right=False):
         if right: 
             cx  += mid_point     
         
-        radius      = 40
-        thickness   = 10
+        radius      = 5
+        thickness   = 3
         frame = cv.circle(frame, (cx, cy), radius, (0, 0, 255), thickness)
          
     except:
@@ -278,7 +303,35 @@ def eye_68_facial_landmark(eyes_detector, frame_gray, face_ROIs, left_cor, right
     return facial_landmarks, eye_ROIs
 
 # For Real Time DETECTING
-def detectAndDisplay(frame, face_detector, eyes_detector):
+def enhanceAndDisplay(frame, low_light_model):
+    start_time = time.time()
+    img_original= frame.copy()
+    if(low_light_model == "LIME"):
+        frame = conventional.enhance_image_exposure(frame, 0.6, 0.15, False,
+                                            sigma=3, bc=1, bs=1, be=1, eps=1e-3)
+    elif(low_light_model == "DUAL"): 
+        frame = conventional.enhance_image_exposure(frame, 0.6, 0.15, True,
+                                            sigma=3, bc=1, bs=1, be=1, eps=1e-3)
+    elif(low_light_model == "DCE"):
+        frame = torch.from_numpy(frame/255.0).float()
+        frame = frame.permute(2,0,1)
+        frame = frame.unsqueeze(0).to('cpu')
+        
+        _,frame,_ = DCE_net(frame)
+        frame = frame.squeeze(0).permute(1,2,0).detach().numpy()
+        
+    process_time = time.time() - start_time
+    frame = cv.putText(img= frame, text=f"{process_time:.2f} sec", org=(80, 80), 
+            fontFace=cv.FONT_HERSHEY_DUPLEX, 
+            fontScale=1.0, color=(125, 246, 55), thickness=3)
+    
+    print(f"process time = {process_time:.2f} sec")
+    cv.imshow('Before Enhances', img_original)
+    cv.imshow('Capture - Low Light Enhancement', frame)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
+    
+def detectAndDisplay(frame, face_detector, eyes_detector, low_light_model):
     frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     frame_gray = cv.equalizeHist(frame_gray)
     #-- Detect faces
@@ -297,6 +350,13 @@ def detectAndDisplay(frame, face_detector, eyes_detector):
     cv.imshow('Capture - Face detection', frame)
     cv.waitKey(0)
     cv.destroyAllWindows()
+
+
+############################
+# Initialing Low Light NN
+############################
+DCE_net = zero_dce_model.enhance_net_nopool().to('cpu')
+DCE_net.load_state_dict(torch.load('Zero-DCE/Zero-DCE_code/snapshots/Epoch99.pth', map_location='cpu'))
 
 ############################
 # Initialing Face Detector
@@ -427,7 +487,7 @@ def ALL_METHODS():
         
         plot_offset     = 0  # if not detect
         
-        for face_method in face_methods:
+        for face_method in face_methods: 
             img_results.append(cvt_RGB(img))
             img_titles.append("Original")
             
@@ -488,8 +548,7 @@ def ALL_METHODS():
         
         break
 
-
-def DETECTION(camera_device):
+def DETECTION(camera_device, low_light_model):
     ################################
     #   Using Camera
     ################################
@@ -501,16 +560,29 @@ def DETECTION(camera_device):
 
     while True:
         ret, frame = cap.read()
+        
+        # image resize
+        width       = 240
+        height      = 240
+        frame       = cv.resize(frame, (width, height), interpolation=cv.INTER_AREA)
+        
         if frame is None:
             print('--(!) No captured frame -- Break!')
             break
-        detectAndDisplay(frame, face_haar_detector, eye_haar_detector)
+        enhanceAndDisplay(frame, low_light_model)
+        # detectAndDisplay(frame, face_haar_detector, eye_haar_detector)
         if cv.waitKey(10) == 27:
             break
     
-def REAL_TIME_TRACKING(camera_device, face_detector):
+def REAL_TIME_TRACKING(camera_device, face_detector, low_light_model):
     cap         = cv.VideoCapture(camera_device)
     ret, img    = cap.read()
+    
+    # image resize
+    width       = 320
+    height      = 240
+    img         = cv.resize(img, (width, height), interpolation=cv.INTER_AREA)
+
     thresh      = img.copy()
 
     cv.namedWindow('image')
@@ -523,8 +595,39 @@ def REAL_TIME_TRACKING(camera_device, face_detector):
     left    = [36, 37, 38, 39, 40, 41]
     right   = [42, 43, 44, 45, 46, 47]
 
+    start_time  = time.time()
+    avg_sec     = 5
+    counter     = 0
+    fps         = 0
     while(True):
+        
         ret, img    = cap.read()
+        
+        
+        # image resize
+        width       = 320
+        height      = 240
+        # width       = 640
+        # height      = 480
+        
+        img         = cv.resize(img, (width, height), interpolation=cv.INTER_AREA)
+        orig_img    = img.copy() 
+        # low light enhancement
+        if(low_light_model == "LIME"):
+            img = conventional.enhance_image_exposure(img, 0.6, 0.15, False,
+                                                sigma=3, bc=1, bs=1, be=1, eps=1e-3)
+        elif(low_light_model == "DUAL"): 
+            img = conventional.enhance_image_exposure(img, 0.6, 0.15, True,
+                                                sigma=3, bc=1, bs=1, be=1, eps=1e-3)
+        elif(low_light_model == "DCE"):
+            img = torch.from_numpy(img/255.0).float()
+            img = img.permute(2,0,1)
+            img = img.unsqueeze(0).to('cpu')
+            
+            _,img,_ = DCE_net(img)
+            img     = img.squeeze(0).permute(1,2,0).detach().numpy()
+
+            
         img_gray    = cvt_GRAY(img)
         #Choose the detector
         if(face_detector == "DNN"):
@@ -544,13 +647,19 @@ def REAL_TIME_TRACKING(camera_device, face_detector):
             print("Invalid Face Detector")
             return  
             
+        # img       = draw_FACE(img, rects)
+        
         for (x1,x2,y1,y2) in rects:
             rect  = dlib.rectangle(x1, y1, x2, y2)
             shape = eye_68_detector(img_gray, rect)
             shape = shape_to_np(shape)
+            
             mask = np.zeros(img.shape[:2], dtype=np.uint8)
             mask = eye_on_mask(shape, mask, left)
             mask = eye_on_mask(shape, mask, right)
+            
+            
+            
             mask = cv.dilate(mask, kernel, 5)
             eyes = cv.bitwise_and(img, img, mask=mask)
             mask = (eyes == [0, 0, 0]).all(axis=2)
@@ -558,6 +667,7 @@ def REAL_TIME_TRACKING(camera_device, face_detector):
             mid = (shape[42][0] + shape[39][0]) // 2
             eyes_gray = cvt_GRAY(eyes)
             threshold = cv.getTrackbarPos('threshold', 'image')
+            # threshold = 80
             _, thresh = cv.threshold(eyes_gray, threshold, 255, cv.THRESH_BINARY)
             thresh = cv.erode(thresh, None, iterations=2) #1
             thresh = cv.dilate(thresh, None, iterations=4) #2
@@ -565,10 +675,22 @@ def REAL_TIME_TRACKING(camera_device, face_detector):
             thresh = cv.bitwise_not(thresh)
             img    = contouring(img, mid, thresh[:, 0:mid])
             img    = contouring(img, mid, thresh[:, mid:], True)
-            # for (x, y) in shape[36:48]:
-            #     cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+
+        
+        counter += 1
+        if((time.time()-start_time)> avg_sec):   
+            fps = counter/ (time.time()-start_time)
+            counter = 0
+            start_time = time.time()
+            print("FPS: ", fps)
+        
+        img = cv.putText(img= img, text=f"FPS={fps:.2f}", org=(150, 80), 
+                        fontFace=cv.FONT_HERSHEY_DUPLEX, 
+                        fontScale=1.0, color=(125, 246, 55), thickness=1)
+    
         # show the image with the face detections + facial landmarks
         cv.imshow('eyes', img)
+        cv.imshow('orig', orig_img)
         cv.imshow("image", thresh)
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
@@ -582,6 +704,7 @@ if __name__ == "__main__":
     parser.add_argument('--camera', help='Camera divide number.', type=int, default=0)
     parser.add_argument('--type', help='["ALL", "DETECT", "TRACK"]', type=str, default="ALL")
     parser.add_argument('--face', help='["DNN", "HOG", "MTCNN", "HAAR"]', type=str, default="DNN")
+    parser.add_argument('--light', help='["DCE", "GAN", "LIME", "DUAL"]', type=str, default="DCE")
     args = parser.parse_args()
 
     if(args.type == "ALL"):
@@ -589,7 +712,7 @@ if __name__ == "__main__":
         ALL_METHODS()
     elif(args.type == "DETECT"):
         print("USING WEBCAM TO DO DETECTION")
-        DETECTION(args.camera)
+        DETECTION(args.camera, args.light)
     else:
         print("USING WEBCAM TO DO REAL TIME TRACKING")
-        REAL_TIME_TRACKING(args.camera, args.face)
+        REAL_TIME_TRACKING(args.camera, args.face, args.light)
